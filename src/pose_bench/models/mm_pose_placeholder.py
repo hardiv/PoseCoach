@@ -10,7 +10,7 @@ class MMPoseEstimator(PoseEstimator):
     
     To implement:
     1. Install MMPose and dependencies:
-       pip install mmcv-full mmpose
+       uv pip install mmcv-full mmpose
        
     2. Download a pretrained model config + checkpoint:
        - Browse: https://github.com/open-mmlab/mmpose/tree/master/configs
