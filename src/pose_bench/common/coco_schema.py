@@ -86,3 +86,75 @@ def create_empty_coco17_result() -> tuple[np.ndarray, np.ndarray]:
     keypoints = np.full((17, 2), np.nan, dtype=np.float32)
     conf = np.zeros(17, dtype=np.float32)
     return keypoints, conf
+
+
+# MPII 16-joint keypoint names (standard order)
+MPII_KEYPOINT_NAMES = [
+    "right_ankle",     # 0
+    "right_knee",      # 1
+    "right_hip",       # 2
+    "left_hip",        # 3
+    "left_knee",       # 4
+    "left_ankle",      # 5
+    "pelvis",          # 6
+    "thorax",          # 7
+    "upper_neck",      # 8
+    "head_top",        # 9
+    "right_wrist",     # 10
+    "right_elbow",     # 11
+    "right_shoulder",  # 12
+    "left_shoulder",   # 13
+    "left_elbow",      # 14
+    "left_wrist",      # 15
+]
+
+
+def map_mpii_to_coco17(mpii_keypoints: np.ndarray, mpii_visible: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Map MPII 16-joint keypoints to COCO-17 format.
+    
+    MPII lacks: nose, eyes, ears. We can approximate head/neck but leave face joints as NaN.
+    
+    Args:
+        mpii_keypoints: (16, 2) MPII joint coordinates
+        mpii_visible: (16,) MPII visibility flags (1=visible, 0=not visible)
+        
+    Returns:
+        coco_keypoints: (17, 2) COCO-17 joint coordinates
+        coco_conf: (17,) COCO-17 confidence (1.0 for visible, 0.0 for not visible)
+    """
+    coco_keypoints, coco_conf = create_empty_coco17_result()
+    
+    # Direct mappings where joints match
+    # COCO index -> (MPII index, name)
+    mapping = {
+        # Face joints: no direct mapping from MPII, leave as NaN
+        # 0: nose - no mapping
+        # 1: left_eye - no mapping
+        # 2: right_eye - no mapping
+        # 3: left_ear - no mapping
+        # 4: right_ear - no mapping
+        
+        # Upper body
+        5: (13, "left_shoulder"),   # left_shoulder
+        6: (12, "right_shoulder"),  # right_shoulder
+        7: (14, "left_elbow"),      # left_elbow
+        8: (11, "right_elbow"),     # right_elbow
+        9: (15, "left_wrist"),      # left_wrist
+        10: (10, "right_wrist"),    # right_wrist
+        
+        # Lower body
+        11: (3, "left_hip"),        # left_hip
+        12: (2, "right_hip"),       # right_hip
+        13: (4, "left_knee"),       # left_knee
+        14: (1, "right_knee"),      # right_knee
+        15: (5, "left_ankle"),      # left_ankle
+        16: (0, "right_ankle"),     # right_ankle
+    }
+    
+    for coco_idx, (mpii_idx, _) in mapping.items():
+        if mpii_visible[mpii_idx] > 0:
+            coco_keypoints[coco_idx] = mpii_keypoints[mpii_idx]
+            coco_conf[coco_idx] = 1.0
+    
+    return coco_keypoints, coco_conf

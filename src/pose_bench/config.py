@@ -9,9 +9,9 @@ import yaml
 @dataclass
 class DatasetConfig:
     """Dataset configuration."""
-    name: str
+    name: str  # "coco" or "mpii"
     images_root: str
-    annotations_json: str
+    annotations_json: str  # For COCO; use annotations_path for MPII
 
 
 @dataclass
@@ -53,3 +53,7 @@ class Config:
         if subdir:
             return base / subdir
         return base
+    
+    def get_dataset_type(self) -> str:
+        """Get dataset type (coco or mpii)."""
+        return self.dataset.name.lower()

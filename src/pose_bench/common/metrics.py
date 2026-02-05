@@ -25,6 +25,8 @@ class PoseMetrics:
         model_name: str,
         keypoints: np.ndarray,
         conf: np.ndarray,
+        gt_keypoints: np.ndarray | None = None,
+        gt_visible: np.ndarray | None = None,
     ) -> None:
         """
         Add a pose estimation result and compute metrics.
@@ -34,6 +36,8 @@ class PoseMetrics:
             model_name: Name of the pose model
             keypoints: Joint coordinates (17, 2)
             conf: Joint confidences (17,)
+            gt_keypoints: Ground truth keypoints (17, 2) - optional, for MPII
+            gt_visible: Ground truth visibility (17,) - optional, for MPII
         """
         # Count detected joints (above confidence threshold)
         detected_mask = conf >= self.min_conf
@@ -51,14 +55,31 @@ class PoseMetrics:
         # Valid pose: at least 8 joints detected (arbitrary threshold for "reasonable" pose)
         valid_pose = detected_joints_count >= 8
         
-        self.records.append({
+        # Compute pixel error if ground truth is provided (for MPII)
+        mean_pixel_error = None
+        if gt_keypoints is not None and gt_visible is not None:
+            # Compute error only for visible ground truth joints
+            visible_mask = (gt_visible > 0) & detected_mask
+            if visible_mask.sum() > 0:
+                errors = np.linalg.norm(
+                    keypoints[visible_mask] - gt_keypoints[visible_mask],
+                    axis=1
+                )
+                mean_pixel_error = float(errors.mean())
+        
+        record = {
             "image_name": image_name,
             "model_name": model_name,
             "detected_joints_count": int(detected_joints_count),
             "mean_conf_all": float(mean_conf_all),
             "mean_conf_detected": float(mean_conf_detected),
             "valid_pose": bool(valid_pose),
-        })
+        }
+        
+        if mean_pixel_error is not None:
+            record["mean_pixel_error"] = mean_pixel_error
+        
+        self.records.append(record)
     
     def save_per_image_metrics(self, output_dir: Path, model_name: str, dataset_name: str) -> None:
         """
@@ -98,15 +119,23 @@ class PoseMetrics:
         
         df = pd.DataFrame(self.records)
         
-        # Aggregate by model
-        leaderboard = df.groupby("model_name").agg({
+        # Base aggregation
+        agg_dict = {
             "image_name": "count",  # num_images
             "valid_pose": "mean",   # pose_rate
             "detected_joints_count": "mean",
             "mean_conf_detected": "mean",
-        }).reset_index()
+        }
         
-        leaderboard.columns = [
+        # Add pixel error if present (MPII)
+        if "mean_pixel_error" in df.columns:
+            agg_dict["mean_pixel_error"] = "mean"
+        
+        # Aggregate by model
+        leaderboard = df.groupby("model_name").agg(agg_dict).reset_index()
+        
+        # Rename columns
+        col_names = [
             "model_name",
             "num_images",
             "pose_rate",
@@ -114,10 +143,18 @@ class PoseMetrics:
             "mean_conf",
         ]
         
+        if "mean_pixel_error" in df.columns:
+            col_names.append("mean_pixel_error")
+        
+        leaderboard.columns = col_names
+        
         # Convert pose_rate to percentage
         leaderboard["pose_rate"] = (leaderboard["pose_rate"] * 100).round(2)
         leaderboard["mean_detected_joints"] = leaderboard["mean_detected_joints"].round(2)
         leaderboard["mean_conf"] = leaderboard["mean_conf"].round(3)
+        
+        if "mean_pixel_error" in leaderboard.columns:
+            leaderboard["mean_pixel_error"] = leaderboard["mean_pixel_error"].round(2)
         
         # Sort by pose_rate descending
         leaderboard = leaderboard.sort_values("pose_rate", ascending=False)

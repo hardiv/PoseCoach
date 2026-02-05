@@ -196,6 +196,43 @@ black src/
 mypy src/
 ```
 
+## Using MPII Dataset
+
+The repo also supports MPII Human Pose dataset for single-person pose benchmarking.
+
+### Setup
+
+MPII requires manual download due to licensing:
+
+1. Visit http://human-pose.mpi-inf.mpg.de/ and agree to the license
+2. Download images and annotations
+3. Convert annotations to JSON format (see `scripts/download_mpii.sh` for details)
+4. Organize as:
+   ```
+   data/mpii/
+     images/           # MPII images
+     annotations/
+       mpii_annotations.json
+   ```
+
+### Configuration
+
+Update `config.yaml` to use MPII:
+
+```yaml
+dataset:
+  name: "mpii"  # Switch from "coco"
+  images_root: "data/mpii/images"
+  annotations_json: "data/mpii/annotations/mpii_annotations.json"
+```
+
+### MPII Metrics
+
+For MPII, the benchmark additionally computes:
+- **mean_pixel_error**: Average pixel distance between predicted and ground truth joints (only for visible joints)
+
+MPII uses 16 joints which are mapped to COCO-17 format (face joints excluded).
+
 ## Performance Tips
 
 - Start with `max_images: 100` for quick iteration
