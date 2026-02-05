@@ -1,0 +1,22 @@
+# Pose Benchmark Configuration
+
+dataset:
+  # Path to COCO val2017 images directory
+  images_root: "data/coco/val2017"
+  # Path to COCO annotations JSON
+  annotations_json: "data/coco/annotations/person_keypoints_val2017.json"
+
+output:
+  # Base output directory
+  dir: "outputs"
+
+benchmark:
+  # Maximum number of images to process (set to null for all)
+  max_images: 100
+  # Minimum confidence threshold for joint detection
+  min_conf: 0.2
+  # Models to run (available: mediapipe, openpose, mmpose)
+  models:
+    - mediapipe
+    # - openpose  # Not implemented yet
+    # - mmpose    # Not implemented yet
