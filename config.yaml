@@ -1,6 +1,8 @@
 # Pose Benchmark Configuration
 
 dataset:
+  # Dataset name (used for organizing outputs)
+  name: "coco"
   # Path to COCO val2017 images directory
   images_root: "data/coco/val2017"
   # Path to COCO annotations JSON

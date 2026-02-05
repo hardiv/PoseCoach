@@ -92,8 +92,8 @@ def run_benchmark(config: Config) -> None:
             logger.error(f"Failed to initialize '{model_name}': {e}")
             continue
         
-        # Create output directories for this model
-        overlay_dir = output_dir / "overlays" / model_name
+        # Create output directories for this model and dataset
+        overlay_dir = output_dir / "overlays" / model_name / config.dataset.name
         overlay_dir.mkdir(parents=True, exist_ok=True)
         
         # Process each image
@@ -131,7 +131,7 @@ def run_benchmark(config: Config) -> None:
                 continue
         
         # Save per-model metrics
-        metrics.save_per_image_metrics(output_dir, model_name)
+        metrics.save_per_image_metrics(output_dir, model_name, config.dataset.name)
         logger.info(f"Completed {model_name}")
     
     # Compute and save leaderboard

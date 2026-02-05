@@ -60,15 +60,16 @@ class PoseMetrics:
             "valid_pose": bool(valid_pose),
         })
     
-    def save_per_image_metrics(self, output_dir: Path, model_name: str) -> None:
+    def save_per_image_metrics(self, output_dir: Path, model_name: str, dataset_name: str) -> None:
         """
         Save per-image metrics to CSV.
         
         Args:
             output_dir: Base output directory
             model_name: Name of the model
+            dataset_name: Name of the dataset
         """
-        metrics_dir = output_dir / "metrics"
+        metrics_dir = output_dir / "metrics" / dataset_name
         metrics_dir.mkdir(parents=True, exist_ok=True)
         
         # Filter records for this model

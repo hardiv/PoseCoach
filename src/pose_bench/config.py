@@ -9,6 +9,7 @@ import yaml
 @dataclass
 class DatasetConfig:
     """Dataset configuration."""
+    name: str
     images_root: str
     annotations_json: str
 
