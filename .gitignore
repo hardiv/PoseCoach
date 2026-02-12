@@ -25,7 +25,7 @@ outputs/
 *.log
 
 # Data
-data/
+data/*
 coco/
 
 # OS

@@ -2,10 +2,14 @@
 
 from .base import PoseEstimator, PoseResult
 from .mediapipe_blazepose import MediaPipePoseEstimator
+from .yolov8_pose import YOLOv8PoseEstimator
+from .movenet import MoveNetEstimator
 
 # Model registry
 MODEL_REGISTRY = {
     "mediapipe": MediaPipePoseEstimator,
+    "yolov8-pose": YOLOv8PoseEstimator,
+    "movenet": MoveNetEstimator,
     # Placeholders - not yet implemented
     # "openpose": OpenPoseEstimator,
     # "mmpose": MMPoseEstimator,

@@ -14,11 +14,13 @@ output:
 
 benchmark:
   # Maximum number of images to process (set to null for all)
-  max_images: 50
+  max_images: 20
   # Minimum confidence threshold for joint detection
   min_conf: 0.2
-  # Models to run (available: mediapipe, openpose, mmpose)
+  # Models to run (available: mediapipe, yolov8-pose, movenet)
   models:
     - mediapipe
+    - yolov8-pose
+    - movenet
     # - openpose  # Not implemented yet
     # - mmpose    # Not implemented yet

@@ -27,6 +27,7 @@ class PoseMetrics:
         conf: np.ndarray,
         gt_keypoints: np.ndarray | None = None,
         gt_visible: np.ndarray | None = None,
+        inference_time_ms: float | None = None,
     ) -> None:
         """
         Add a pose estimation result and compute metrics.
@@ -38,6 +39,7 @@ class PoseMetrics:
             conf: Joint confidences (17,)
             gt_keypoints: Ground truth keypoints (17, 2) - optional, for MPII
             gt_visible: Ground truth visibility (17,) - optional, for MPII
+            inference_time_ms: Inference time in milliseconds - optional
         """
         # Count detected joints (above confidence threshold)
         detected_mask = conf >= self.min_conf
@@ -78,6 +80,9 @@ class PoseMetrics:
         
         if mean_pixel_error is not None:
             record["mean_pixel_error"] = mean_pixel_error
+        
+        if inference_time_ms is not None:
+            record["inference_time_ms"] = float(inference_time_ms)
         
         self.records.append(record)
     
@@ -131,30 +136,51 @@ class PoseMetrics:
         if "mean_pixel_error" in df.columns:
             agg_dict["mean_pixel_error"] = "mean"
         
+        # Add timing statistics if present
+        if "inference_time_ms" in df.columns:
+            agg_dict["inference_time_ms"] = ["mean", "std"]
+        
         # Aggregate by model
         leaderboard = df.groupby("model_name").agg(agg_dict).reset_index()
         
-        # Rename columns
-        col_names = [
-            "model_name",
-            "num_images",
-            "pose_rate",
-            "mean_detected_joints",
-            "mean_conf",
-        ]
+        # Flatten multi-level column names if present
+        if hasattr(leaderboard.columns, 'levels'):  # MultiIndex check
+            new_columns = []
+            for col in leaderboard.columns:
+                if isinstance(col, tuple):
+                    # Flatten tuple columns
+                    if col[1] == "":
+                        new_columns.append(col[0])
+                    else:
+                        new_columns.append(f"{col[0]}_{col[1]}")
+                else:
+                    new_columns.append(col)
+            leaderboard.columns = new_columns
         
-        if "mean_pixel_error" in df.columns:
-            col_names.append("mean_pixel_error")
+        # Rename columns - match the flattened names with suffixes
+        rename_map = {
+            "image_name_count": "num_images",
+            "valid_pose_mean": "pose_rate",
+            "detected_joints_count_mean": "mean_detected_joints",
+            "mean_conf_detected_mean": "mean_conf",
+            "mean_pixel_error_mean": "mean_pixel_error",
+            "inference_time_ms_mean": "mean_inference_ms",
+            "inference_time_ms_std": "std_inference_ms",
+        }
         
-        leaderboard.columns = col_names
+        leaderboard = leaderboard.rename(columns=rename_map)
         
-        # Convert pose_rate to percentage
+        # Convert pose_rate to percentage and round values
         leaderboard["pose_rate"] = (leaderboard["pose_rate"] * 100).round(2)
         leaderboard["mean_detected_joints"] = leaderboard["mean_detected_joints"].round(2)
         leaderboard["mean_conf"] = leaderboard["mean_conf"].round(3)
         
         if "mean_pixel_error" in leaderboard.columns:
             leaderboard["mean_pixel_error"] = leaderboard["mean_pixel_error"].round(2)
+        
+        if "mean_inference_ms" in leaderboard.columns:
+            leaderboard["mean_inference_ms"] = leaderboard["mean_inference_ms"].round(2)
+            leaderboard["std_inference_ms"] = leaderboard["std_inference_ms"].round(2)
         
         # Sort by pose_rate descending
         leaderboard = leaderboard.sort_values("pose_rate", ascending=False)

@@ -3,6 +3,7 @@
 import argparse
 import sys
 import logging
+import time
 from pathlib import Path
 from typing import List
 
@@ -138,8 +139,11 @@ def run_benchmark(config: Config) -> None:
                     logger.error(f"Failed to load image: {img_path}")
                     continue
                 
-                # Run inference
+                # Run inference with timing
+                start_time = time.perf_counter()
                 result = model.predict(image)
+                end_time = time.perf_counter()
+                inference_time_ms = (end_time - start_time) * 1000.0
                 
                 # Save overlay
                 overlay_path = overlay_dir / img_path.name
@@ -170,6 +174,7 @@ def run_benchmark(config: Config) -> None:
                     conf=result["conf"],
                     gt_keypoints=gt_keypoints,
                     gt_visible=gt_visible,
+                    inference_time_ms=inference_time_ms,
                 )
                 
             except Exception as e:
