@@ -1,0 +1,21 @@
+# Phase 1: MPII Baseline Validation
+# Purpose: Sanity check - verify models work, measure general behavior
+
+dataset:
+  name: "mpii"
+  images_root: "data/mpii/images"
+  annotations_json: "data/mpii/annotations/mpii_annotations.json"
+
+output:
+  dir: "outputs/phase1_baseline/mpii"
+
+benchmark:
+  # Start with subset for quick validation, increase as needed
+  max_images: 150
+  # Confidence threshold for joint detection
+  min_conf: 0.3
+  # All three implemented models
+  models:
+    - mediapipe
+    - yolov8-pose
+    - movenet

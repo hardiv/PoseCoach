@@ -1,156 +1,298 @@
-# Pose Bench
+# PoseBench - Pose Estimation Benchmarking Suite
 
-A lightweight Python benchmarking suite for 2D pose estimation models on COCO images.
+A focused benchmarking suite to answer: **"Which pose estimation model should we use for exercise form assessment, and when will it fail?"**
 
-## Features
+## 🎯 Experiment Goals
 
-- 🎯 **Model Agnostic**: Extensible interface for adding pose estimators (strategy pattern)
-- 📊 **Fast Metrics**: Compute joint detection rates, confidence scores, and pose validity
-- 🎨 **Visual Overlays**: Generate skeleton overlay images for qualitative assessment
-- 🔧 **Simple Config**: YAML-based configuration for datasets and models
-- 📦 **Minimal Setup**: Uses `uv` for fast dependency management
+### Phase 1: Baseline Validation (COCO & MPII)
+Establish baseline performance on standard datasets:
+- **Purpose**: Sanity check - do models work? What's their general behavior?
+- **Metrics**: Detection rates, confidence scores, inference speed, per-joint errors
+- **Datasets**: COCO val2017 & MPII (150-300 images each)
 
-## Current Models
+### Phase 2: Exercise-Specific Testing (Real Gym Conditions)
+Evaluate on real workout scenarios:
+- **Purpose**: Answer "do these models work for MY problem?"
+- **Analysis**: Visual inspection, consistency across viewpoints, robustness to lighting/occlusion
+- **Dataset**: PA_WO (real gym exercises with varied capture conditions)
+- **Key Questions**:
+  - Which joints are unreliable? (avoid building form rules around them)
+  - Which models are consistent? (low variance matters more than perfect accuracy)
+  - What conditions cause failure? (viewpoint, occlusion, clothing, lighting)
 
-- ✅ **MediaPipe BlazePose** - Fully implemented
-- 🚧 **OpenPose** - Placeholder (see integration guide in code)
-- 🚧 **MMPose** - Placeholder (see integration guide in code)
+## 🤖 Models
 
-## Project Structure
+Three production-ready models:
+- ✅ **MediaPipe BlazePose** - Fast, mobile-friendly, on-device inference
+- ✅ **YOLOv8-Pose** - High accuracy, GPU-optimized
+- ✅ **MoveNet** - Balanced speed/accuracy tradeoff
+
+## 📁 Project Structure
 
 ```
-pose_bench/
-├── pyproject.toml           # Dependencies and project metadata
-├── config.yaml              # Benchmark configuration
-├── src/pose_bench/
-│   ├── run_benchmark.py     # Main runner script
-│   ├── config.py            # Configuration management
-│   ├── common/              # Shared utilities
-│   │   ├── coco_schema.py   # COCO-17 keypoint definitions
-│   │   ├── io.py            # Dataset loading
-│   │   ├── draw_skeleton.py # Skeleton visualization
-│   │   └── metrics.py       # Metrics computation
-│   └── models/              # Pose estimator implementations
-│       ├── base.py          # Abstract base class
+PoseBench/
+├── run_experiment.py              # 🚀 Main orchestrator - runs entire experiment
+├── configs/                       # Phase-specific configurations
+│   ├── coco_baseline.yaml         # Phase 1: COCO validation
+│   ├── mpii_baseline.yaml         # Phase 1: MPII validation
+│   └── gym_exercises.yaml         # Phase 2: Real gym testing
+├── data/                          # Datasets
+│   ├── coco/                      # COCO val2017
+│   ├── mpii/                      # MPII dataset
+│   └── pa_wo/                     # Gym exercise images
+├── src/pose_bench/                # Modular benchmarking components
+│   ├── inference.py               # 1️⃣ Run model predictions
+│   ├── calculate_metrics.py       # 2️⃣ Compute aggregate metrics
+│   ├── calculate_per_joint_errors.py  # 3️⃣ Per-joint error analysis
+│   ├── generate_overlays.py       # 4️⃣ Create skeleton visualizations
+│   ├── run_single_benchmark.py    # Orchestrate single model+dataset
+│   ├── config.py                  # Configuration management
+│   ├── common/                    # Shared utilities
+│   │   ├── coco_schema.py         # COCO-17 keypoint schema
+│   │   ├── io.py                  # Dataset loading
+│   │   ├── draw_skeleton.py       # Skeleton visualization
+│   │   └── metrics.py             # Metrics computation
+│   ├── datasets/                  # Dataset adapters
+│   │   └── mpii.py                # MPII adapter
+│   └── models/                    # Pose estimators
+│       ├── base.py                # Abstract interface
 │       ├── mediapipe_blazepose.py
-│       ├── openpose_placeholder.py
-│       └── mm_pose_placeholder.py
+│       ├── yolov8_pose.py
+│       └── movenet.py
 ├── scripts/
-│   └── download_coco.sh     # COCO dataset download script
-└── outputs/                 # Generated results (gitignored)
-    ├── overlays/            # Skeleton overlay images
-    ├── metrics/             # Per-image CSV files
-    └── leaderboard.csv      # Aggregate results
+│   ├── download_coco.sh           # COCO dataset downloader
+│   └── download_mpii.sh           # MPII dataset downloader
+└── outputs/                       # Generated results
+    ├── phase1_baseline/
+    │   ├── coco/
+    │   │   ├── predictions/       # Model predictions (JSON)
+    │   │   ├── metrics/           # Aggregate & per-joint metrics (CSV)
+    │   │   ├── overlays/          # Skeleton visualizations
+    │   │   └── leaderboard.csv    # Model comparison
+    │   └── mpii/
+    └── phase2_gym/
 ```
 
-## Quick Start
+## 🚀 Quick Start
 
 ### 1. Setup Environment
 
 ```bash
-# Create virtual environment with uv
-uv venv .venv
-
-# Activate virtual environment
-# macOS/Linux:
-source .venv/bin/activate
-# Windows:
-# .venv\Scripts\activate
-
 # Install dependencies
+pip install -e .
+
+# Or using uv (faster)
 uv pip install -e .
 ```
 
-### 2. Download COCO Dataset
+### 2. Download Datasets
 
 ```bash
-# Downloads COCO val2017 images + annotations (~1.2GB)
-bash scripts/download_coco.sh
+# Phase 1: Baseline datasets
+bash scripts/download_coco.sh    # COCO val2017 (~1.2GB)
+bash scripts/download_mpii.sh    # MPII dataset
+
+# Phase 2: Add gym exercise images to data/pa_wo/
 ```
 
-This creates:
-- `data/coco/val2017/` - 5000 validation images
-- `data/coco/annotations/person_keypoints_val2017.json`
-
-### 3. Run Benchmark
+### 3. Run Complete Experiment
 
 ```bash
-# Run with default config (100 images, MediaPipe only)
-python -m pose_bench.run_benchmark --config config.yaml
-
-# Process more images
-python -m pose_bench.run_benchmark --config config.yaml --max-images 500
-
-# Process all images (5000)
-python -m pose_bench.run_benchmark --config config.yaml --max-images 0
+# Run all phases end-to-end
+python run_experiment.py
 ```
 
-### 4. View Results
+This will:
+1. Run inference for all models on all datasets
+2. Calculate comprehensive metrics
+3. Generate per-joint error analysis (for datasets with ground truth)
+4. Create skeleton overlay visualizations
+5. Generate leaderboards for each dataset
 
-Results are saved to `outputs/`:
+### 4. Run Specific Phases
 
-- **Overlays**: `outputs/overlays/{model}/{image}.jpg` - Visual skeletons
-- **Metrics**: `outputs/metrics/{model}.csv` - Per-image metrics
-- **Leaderboard**: `outputs/leaderboard.csv` - Aggregate performance
+```bash
+# Phase 1 only (baseline validation)
+python run_experiment.py --configs configs/coco_baseline.yaml configs/mpii_baseline.yaml
 
-Example leaderboard:
+# Phase 2 only (gym exercises)
+python run_experiment.py --configs configs/gym_exercises.yaml
+
+# Skip specific phases
+python run_experiment.py --skip-phases coco
 ```
-model_name   num_images  pose_rate  mean_detected_joints  mean_conf
-mediapipe           100      87.00                 14.23      0.745
+
+## 🔧 Modular Usage
+
+Each component can be run independently:
+
+### 1️⃣ Run Inference
+
+```bash
+python -m pose_bench.inference \
+  --model mediapipe \
+  --dataset-name coco \
+  --images-root data/coco/val2017 \
+  --annotations-json data/coco/annotations/person_keypoints_val2017.json \
+  --output-dir outputs/test/predictions \
+  --max-images 50
 ```
 
-## Configuration
+Output:
+- `mediapipe_predictions.json` - Keypoints & confidences
+- `mediapipe_inference_stats.json` - Timing statistics
 
-Edit `config.yaml` to customize:
+### 2️⃣ Calculate Metrics
+
+```bash
+python -m pose_bench.calculate_metrics \
+  --predictions outputs/test/predictions/mediapipe_predictions.json \
+  --output-dir outputs/test/metrics \
+  --min-conf 0.3
+```
+
+Output:
+- `mediapipe_per_image_metrics.csv` - Per-image statistics
+- `mediapipe_aggregate_metrics.json` - Overall performance
+
+### 3️⃣ Calculate Per-Joint Errors
+
+```bash
+python -m pose_bench.calculate_per_joint_errors \
+  --predictions outputs/test/predictions/mediapipe_predictions.json \
+  --ground-truth outputs/test/predictions/ground_truth.json \
+  --output-dir outputs/test/metrics \
+  --min-conf 0.3
+```
+
+Output:
+- `mediapipe_per_joint_errors.csv` - Joint-wise error statistics
+
+### 4️⃣ Generate Overlays
+
+```bash
+python -m pose_bench.generate_overlays \
+  --predictions outputs/test/predictions/mediapipe_predictions.json \
+  --images-root data/coco/val2017 \
+  --output-dir outputs/test/overlays/mediapipe \
+  --min-conf 0.3
+```
+
+Output:
+- Skeleton overlay images for each prediction
+
+### 🎯 Run Single Model+Dataset Benchmark
+
+```bash
+python -m pose_bench.run_single_benchmark \
+  --config configs/coco_baseline.yaml \
+  --model mediapipe
+```
+
+Runs all steps (inference → metrics → errors → overlays) for one model.
+
+## 📊 Output Structure
+
+After running the experiment, outputs are organized by phase:
+
+```
+outputs/
+├── phase1_baseline/
+│   ├── coco/
+│   │   ├── predictions/
+│   │   │   ├── mediapipe_predictions.json
+│   │   │   ├── yolov8-pose_predictions.json
+│   │   │   ├── movenet_predictions.json
+│   │   │   └── ground_truth.json
+│   │   ├── metrics/
+│   │   │   ├── mediapipe_per_image_metrics.csv
+│   │   │   ├── mediapipe_aggregate_metrics.json
+│   │   │   ├── mediapipe_per_joint_errors.csv
+│   │   │   └── ... (same for other models)
+│   │   ├── overlays/
+│   │   │   ├── mediapipe/coco/
+│   │   │   ├── yolov8-pose/coco/
+│   │   │   └── movenet/coco/
+│   │   └── leaderboard.csv               # 📈 Model comparison
+│   └── mpii/
+│       └── ... (same structure)
+└── phase2_gym/
+    └── ... (same structure)
+```
+
+## 📈 Key Metrics
+
+### Aggregate Metrics
+- **Pose Detection Rate**: % images with valid pose (≥8 joints detected)
+- **Mean Detected Joints**: Average joints detected per image
+- **Mean Confidence**: Average confidence across all predictions
+- **Inference Time**: Mean & std deviation (ms)
+
+### Per-Joint Metrics (when ground truth available)
+- **Detection Rate**: % visible joints detected
+- **Mean Pixel Error**: Average distance from ground truth
+- **Median Pixel Error**: Robust error measure
+- **Error Std Deviation**: Consistency measure
+
+## 🔍 Analysis Guidelines
+
+### Phase 1: Baseline Validation
+Look for:
+- Overall detection rates (should be >80% on standard datasets)
+- Inference speed (MediaPipe ~20-50ms, YOLOv8 ~30-100ms, MoveNet ~40-80ms)
+- Per-joint reliability (which joints have high error or low detection?)
+
+### Phase 2: Gym Exercise Testing
+Focus on:
+- **Visual Inspection**: Do overlays look correct across different viewpoints?
+- **Consistency**: Does same model produce similar results across angles?
+- **Failure Modes**: Which conditions cause breakdown?
+  - Occlusion (baggy clothing, equipment)
+  - Lighting (dim gym lighting)
+  - Viewpoint (front vs side vs 45°)
+  - Body types
+
+## 🎨 Configuration
+
+Edit config files in `configs/` to customize:
 
 ```yaml
 dataset:
-  images_root: "data/coco/val2017"
-  annotations_json: "data/coco/annotations/person_keypoints_val2017.json"
+  name: "coco"                              # Dataset identifier
+  images_root: "data/coco/val2017"          # Path to images
+  annotations_json: "data/coco/..."         # Annotations (optional)
 
 output:
-  dir: "outputs"
+  dir: "outputs/phase1_baseline/coco"       # Output directory
 
 benchmark:
-  max_images: 100           # null for all images
-  min_conf: 0.2             # Confidence threshold for visualization
-  models:
-    - mediapipe             # Currently implemented
-    # - openpose            # Add when implemented
-    # - mmpose              # Add when implemented
+  max_images: 150                           # Limit for quick tests (null = all)
+  min_conf: 0.3                             # Confidence threshold
+  models:                                   # Models to evaluate
+    - mediapipe
+    - yolov8-pose
+    - movenet
 ```
 
-## Metrics Explained
+## 🛠️ Development
 
-**Per-Image Metrics** (`outputs/metrics/{model}.csv`):
-- `detected_joints_count`: Joints with confidence ≥ threshold
-- `mean_conf_all`: Average confidence across all 17 joints
-- `mean_conf_detected`: Average confidence of detected joints only
-- `valid_pose`: Boolean (≥8 joints detected)
+### Adding a New Model
 
-**Leaderboard** (`outputs/leaderboard.csv`):
-- `pose_rate`: Percentage of images with valid poses
-- `mean_detected_joints`: Average detected joints per image
-- `mean_conf`: Average confidence across all images
-
-## Adding New Models
-
-Implement the `PoseEstimator` interface in `src/pose_bench/models/`:
+1. Create `src/pose_bench/models/your_model.py`:
 
 ```python
 from .base import PoseEstimator, PoseResult
 import numpy as np
 
-class MyModelEstimator(PoseEstimator):
-    name = "mymodel"
+class YourModelEstimator(PoseEstimator):
+    name = "your_model"
     
     def __init__(self):
-        # Initialize your model
+        # Initialize model
         pass
     
     def predict(self, bgr_image: np.ndarray) -> PoseResult:
-        # Run inference
-        # Return COCO-17 keypoints (17, 2) and confidences (17,)
+        # Run inference, return COCO-17 keypoints
         return PoseResult(
             keypoints=np.array(...),  # (17, 2)
             conf=np.array(...),        # (17,)
@@ -159,20 +301,43 @@ class MyModelEstimator(PoseEstimator):
         )
 ```
 
-Register in `src/pose_bench/models/__init__.py`:
+2. Register in `src/pose_bench/models/__init__.py`:
 
 ```python
-from .mymodel import MyModelEstimator
-
 MODEL_REGISTRY = {
     "mediapipe": MediaPipePoseEstimator,
-    "mymodel": MyModelEstimator,  # Add here
+    "yolov8-pose": YOLOv8PoseEstimator,
+    "movenet": MoveNetEstimator,
+    "your_model": YourModelEstimator,  # Add here
 }
 ```
 
-## COCO-17 Keypoint Format
+3. Add to config file `models` list
 
-All models must output 17 keypoints in COCO order:
+### Adding a New Dataset
+
+1. Create adapter in `src/pose_bench/datasets/`
+2. Implement loading and annotation parsing
+3. Map keypoints to COCO-17 schema
+4. Create config file in `configs/`
+
+## 📦 Dependencies
+
+Core:
+- `opencv-python` - Image I/O and visualization
+- `numpy` - Array operations
+- `pandas` - Metrics and CSV handling
+- `tqdm` - Progress bars
+- `pyyaml` - Configuration
+
+Models:
+- `mediapipe` - BlazePose
+- `ultralytics` - YOLOv8
+- `tensorflow` / `tensorflow-hub` - MoveNet
+
+## 🔗 COCO-17 Keypoint Format
+
+All models output 17 keypoints in COCO order:
 
 ```
 0:nose, 1:left_eye, 2:right_eye, 3:left_ear, 4:right_ear,
@@ -181,84 +346,11 @@ All models must output 17 keypoints in COCO order:
 13:left_knee, 14:right_knee, 15:left_ankle, 16:right_ankle
 ```
 
-Skeleton edges are defined in `src/pose_bench/common/coco_schema.py`.
+## 📝 License
 
-## Development
+MIT
 
-```bash
-# Install dev dependencies
-uv pip install -e ".[dev]"
-
-# Format code
-black src/
-
-# Type checking
-mypy src/
-```
-
-## Using MPII Dataset
-
-The repo also supports MPII Human Pose dataset for single-person pose benchmarking.
-
-### Setup
-
-MPII requires manual download due to licensing:
-
-1. Visit http://human-pose.mpi-inf.mpg.de/ and agree to the license
-2. Download images and annotations
-3. Convert annotations to JSON format (see `scripts/download_mpii.sh` for details)
-4. Organize as:
-   ```
-   data/mpii/
-     images/           # MPII images
-     annotations/
-       mpii_annotations.json
-   ```
-
-### Configuration
-
-Update `config.yaml` to use MPII:
-
-```yaml
-dataset:
-  name: "mpii"  # Switch from "coco"
-  images_root: "data/mpii/images"
-  annotations_json: "data/mpii/annotations/mpii_annotations.json"
-```
-
-### MPII Metrics
-
-For MPII, the benchmark additionally computes:
-- **mean_pixel_error**: Average pixel distance between predicted and ground truth joints (only for visible joints)
-
-MPII uses 16 joints which are mapped to COCO-17 format (face joints excluded).
-
-## Performance Tips
-
-- Start with `max_images: 100` for quick iteration
-- Use `min_conf: 0.2` for visualization (lower shows more joints)
-- MediaPipe runs ~20-30 images/sec on CPU, ~50+ on GPU (if available)
-- For production benchmarks, use full dataset: `max_images: null`
-
-## Limitations
-
-- **Single-person focus**: Returns strongest detected person only
-- **No ground truth comparison**: Metrics are detection-based, not accuracy-based
-- **No GPU optimization**: MediaPipe uses CPU by default (GPU support varies)
-
-## Future Enhancements
-
-- [ ] Multi-person support with assignment to ground truth
-- [ ] PCK/OKS metrics against COCO annotations
-- [ ] GPU acceleration for models
-- [ ] Video sequence support
-- [ ] Real-time webcam demo mode
-
-## License
-
-MIT (or specify your license)
-
-## Citation
+## 📚 Citation
 
 If using COCO dataset:
 ```bibtex
@@ -266,6 +358,16 @@ If using COCO dataset:
   title={Microsoft coco: Common objects in context},
   author={Lin, Tsung-Yi and Maire, Michael and others},
   booktitle={ECCV},
+  year={2014}
+}
+```
+
+If using MPII dataset:
+```bibtex
+@inproceedings{andriluka20142d,
+  title={2D Human Pose Estimation: New Benchmark and State of the Art Analysis},
+  author={Andriluka, Mykhaylo and Pishchulin, Leonid and Gehler, Peter and Schiele, Bernt},
+  booktitle={CVPR},
   year={2014}
 }
 ```
