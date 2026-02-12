@@ -18,6 +18,7 @@ import numpy as np
 import pandas as pd
 
 from .common.coco_schema import COCO_KEYPOINT_NAMES
+from .common.error_metrics import calculate_pck, calculate_oks, calculate_normalized_error
 
 
 def setup_logging() -> logging.Logger:
@@ -74,10 +75,16 @@ def calculate_per_joint_errors(
     
     # Initialize per-joint statistics
     n_joints = 17
-    joint_errors = [[] for _ in range(n_joints)]
+    joint_errors_px = [[] for _ in range(n_joints)]
+    joint_errors_norm = [[] for _ in range(n_joints)]
     joint_detected = [0] * n_joints
     joint_visible = [0] * n_joints
     joint_total = [0] * n_joints
+    
+    # Aggregate metrics
+    all_pck_scores = []
+    all_oks_scores = []
+    all_normalized_errors = []
     
     # Calculate errors for each prediction
     matched_predictions = 0
@@ -95,6 +102,23 @@ def calculate_per_joint_errors(
         gt_keypoints = np.array(gt["keypoints"])  # (17, 2)
         gt_visible = np.array(gt["visible"])  # (17,)
         
+        # Calculate standardized metrics for this image
+        # PCK@0.5 (MPII standard)
+        pck_score, _ = calculate_pck(pred_keypoints, gt_keypoints, gt_visible, threshold=0.5)
+        if not np.isnan(pck_score):
+            all_pck_scores.append(pck_score)
+        
+        # OKS (COCO standard) - needs bbox for scale
+        bbox = None  # Will use fallback scale calculation
+        oks_score, _ = calculate_oks(pred_keypoints, pred_confidences, gt_keypoints, gt_visible, bbox)
+        if not np.isnan(oks_score):
+            all_oks_scores.append(oks_score)
+        
+        # Normalized error
+        norm_error, per_joint_norm_error = calculate_normalized_error(pred_keypoints, gt_keypoints, gt_visible)
+        if not np.isnan(norm_error):
+            all_normalized_errors.append(norm_error)
+        
         # Calculate per-joint errors
         for joint_idx in range(n_joints):
             joint_total[joint_idx] += 1
@@ -110,10 +134,26 @@ def calculate_per_joint_errors(
                     # Calculate pixel error
                     pred_pt = pred_keypoints[joint_idx]
                     gt_pt = gt_keypoints[joint_idx]
-                    error = np.linalg.norm(pred_pt - gt_pt)
-                    joint_errors[joint_idx].append(error)
+                    error_px = np.linalg.norm(pred_pt - gt_pt)
+                    joint_errors_px[joint_idx].append(error_px)
+                    
+                    # Store normalized error
+                    if not np.isnan(per_joint_norm_error[joint_idx]):
+                        joint_errors_norm[joint_idx].append(per_joint_norm_error[joint_idx])
     
     logger.info(f"Matched predictions: {matched_predictions}/{len(predictions)}")
+    
+    # Calculate aggregate metrics
+    aggregate_metrics = {
+        "pck_at_0.5": float(np.mean(all_pck_scores)) if all_pck_scores else np.nan,
+        "oks": float(np.mean(all_oks_scores)) if all_oks_scores else np.nan,
+        "mean_normalized_error": float(np.mean(all_normalized_errors)) if all_normalized_errors else np.nan,
+    }
+    
+    logger.info(f"\nAggregate Error Metrics:")
+    logger.info(f"  PCK@0.5: {aggregate_metrics['pck_at_0.5']:.3f}" if not np.isnan(aggregate_metrics['pck_at_0.5']) else "  PCK@0.5: N/A")
+    logger.info(f"  OKS: {aggregate_metrics['oks']:.3f}" if not np.isnan(aggregate_metrics['oks']) else "  OKS: N/A")
+    logger.info(f"  Normalized Error: {aggregate_metrics['mean_normalized_error']:.3f}" if not np.isnan(aggregate_metrics['mean_normalized_error']) else "  Normalized Error: N/A")
     
     # Calculate statistics for each joint
     per_joint_stats = []
@@ -125,11 +165,16 @@ def calculate_per_joint_errors(
         detection_rate = (joint_detected[joint_idx] / joint_visible[joint_idx] * 100
                          if joint_visible[joint_idx] > 0 else 0.0)
         
-        # Error statistics (only for detected joints)
-        errors = joint_errors[joint_idx]
-        mean_error = float(np.mean(errors)) if errors else np.nan
-        std_error = float(np.std(errors)) if errors else np.nan
-        median_error = float(np.median(errors)) if errors else np.nan
+        # Pixel error statistics (only for detected joints)
+        errors_px = joint_errors_px[joint_idx]
+        mean_error_px = float(np.mean(errors_px)) if errors_px else np.nan
+        std_error_px = float(np.std(errors_px)) if errors_px else np.nan
+        median_error_px = float(np.median(errors_px)) if errors_px else np.nan
+        
+        # Normalized error statistics
+        errors_norm = joint_errors_norm[joint_idx]
+        mean_error_norm = float(np.mean(errors_norm)) if errors_norm else np.nan
+        median_error_norm = float(np.median(errors_norm)) if errors_norm else np.nan
         
         stats = {
             "joint_idx": joint_idx,
@@ -138,10 +183,12 @@ def calculate_per_joint_errors(
             "visible_count": joint_visible[joint_idx],
             "detected_count": joint_detected[joint_idx],
             "detection_rate": float(detection_rate),
-            "mean_error_px": mean_error,
-            "std_error_px": std_error,
-            "median_error_px": median_error,
-            "num_errors": len(errors),
+            "mean_error_px": mean_error_px,
+            "std_error_px": std_error_px,
+            "median_error_px": median_error_px,
+            "mean_error_normalized": mean_error_norm,
+            "median_error_normalized": median_error_norm,
+            "num_errors": len(errors_px),
         }
         
         per_joint_stats.append(stats)
@@ -164,11 +211,22 @@ def calculate_per_joint_errors(
         "model_name": model_name,
         "matched_predictions": matched_predictions,
         "mean_detection_rate": float(df["detection_rate"].mean()),
-        "mean_pixel_error": float(df["mean_error_px"].mean()),
-        "std_pixel_error": float(df["std_error_px"].mean()),
+        "mean_normalized_error": float(df["mean_error_normalized"].mean()),
+        "pck_at_0.5": aggregate_metrics["pck_at_0.5"],
+        "oks": aggregate_metrics["oks"],
     }
     
+    # Save aggregate metrics separately
+    aggregate_file = output_dir / f"{model_name}_error_metrics.json"
+    with open(aggregate_file, "w") as f:
+        import json
+        json.dump(aggregate_metrics, f, indent=2)
+    logger.info(f"Saved aggregate error metrics to {aggregate_file}")
+    
     return {
+        "success": True,
+        "per_joint_file": str(output_file),
+        "aggregate_file": str(aggregate
         "success": True,
         "per_joint_file": str(output_file),
         "overall_stats": overall_stats,
