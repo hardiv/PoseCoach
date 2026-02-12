@@ -24,9 +24,56 @@ from typing import List
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
-from pose_bench.config import Config
+from pose_bench.config import Config, DatasetConfig, OutputConfig, BenchmarkConfig
 from pose_bench.run_single_benchmark import run_single_benchmark
 from pose_bench.calculate_metrics import create_leaderboard
+
+
+# Define experiment phases directly in Python
+EXPERIMENT_PHASES = [
+    # Phase 1: COCO Baseline
+    Config(
+        dataset=DatasetConfig(
+            name="coco",
+            images_root="data/coco/val2017",
+            annotations_json="data/coco/annotations/person_keypoints_val2017.json",
+        ),
+        output=OutputConfig(dir="outputs/phase1_baseline/coco"),
+        benchmark=BenchmarkConfig(
+            max_images=150,  # Subset for baseline
+            min_conf=0.3,
+            models=["mediapipe", "yolov8-pose", "movenet"],
+        ),
+    ),
+    # Phase 1: MPII Baseline
+    Config(
+        dataset=DatasetConfig(
+            name="mpii",
+            images_root="data/mpii/images",
+            annotations_json="data/mpii/annotations/mpii_annotations.json",
+        ),
+        output=OutputConfig(dir="outputs/phase1_baseline/mpii"),
+        benchmark=BenchmarkConfig(
+            max_images=150,  # Subset for baseline
+            min_conf=0.3,
+            models=["mediapipe", "yolov8-pose", "movenet"],
+        ),
+    ),
+    # Phase 2: Gym Exercises
+    Config(
+        dataset=DatasetConfig(
+            name="gym_exercises",
+            images_root="data/pa_wo",
+            annotations_json=None,  # No annotations for gym data
+        ),
+        output=OutputConfig(dir="outputs/phase2_gym"),
+        benchmark=BenchmarkConfig(
+            max_images=None,  # All images
+            min_conf=0.2,  # Lower threshold for challenging conditions
+            models=["mediapipe", "yolov8-pose", "movenet"],
+        ),
+    ),
+]
 
 
 def setup_logging(log_file: Path) -> logging.Logger:
@@ -53,15 +100,15 @@ def print_banner(text: str, char: str = "=") -> None:
 
 
 def run_experiment(
-    configs: List[str],
+    phases: List[int] = None,
     skip_phases: List[str] = None,
 ) -> None:
     """
     Run complete experiment across all phases.
     
     Args:
-        configs: List of config file paths
-        skip_phases: List of phase names to skip (e.g., ["phase1_coco"])
+        phases: List of phase indices to run (1-3), None = all
+        skip_phases: List of phase names to skip (e.g., ["coco", "mpii"])
     """
     skip_phases = skip_phases or []
     
@@ -72,26 +119,19 @@ def run_experiment(
     
     print_banner("POSE ESTIMATION EXPERIMENT", "=")
     logger.info(f"Experiment started at {datetime.now()}")
-    logger.info(f"Configs to process: {len(configs)}")
+    logger.info(f"Total phases: {len(EXPERIMENT_PHASES)}")
     logger.info(f"Log file: {log_file}")
     
     overall_results = []
     
-    # Process each config (phase/dataset)
-    for config_idx, config_path in enumerate(configs, 1):
-        config_path = Path(config_path)
-        
-        if not config_path.exists():
-            logger.error(f"Config file not found: {config_path}")
-            continue
-        
-        # Load config to get phase info
-        try:
-            config = Config.from_yaml(str(config_path))
-        except Exception as e:
-            logger.error(f"Failed to load config {config_path}: {e}")
-            continue
-        
+    # Filter phases if specified
+    configs_to_run = EXPERIMENT_PHASES
+    if phases:
+        configs_to_run = [EXPERIMENT_PHASES[i-1] for i in phases if 1 <= i <= len(EXPERIMENT_PHASES)]
+        logger.info(f"Running phases: {phases}")
+    
+    # Process each phase
+    for config_idx, config in enumerate(configs_to_run, 1):
         phase_name = config.dataset.name
         
         # Check if phase should be skipped
@@ -106,9 +146,8 @@ def run_experiment(
         logger.info(f"Max images: {config.benchmark.max_images or 'all'}")
         
         phase_results = {
-            "phase": phase_name,
-            "config": str(config_path),
-            "models": {},
+            "phase": phase_name,_to_run)}: {phase_name.upper()}", "=")
+        logger.info(f"Images: {config.dataset.images_root
         }
         
         # Run benchmark for each model
@@ -168,31 +207,28 @@ def main():
         epilog="""
 Examples:
   # Run full experiment (all phases)
-  python run_experiment.py
+  python run_experiment.py3 phases)
+  python3 run_experiment.py
   
-  # Run specific configs
-  python run_experiment.py --configs configs/coco_baseline.yaml configs/mpii_baseline.yaml
+  # Run specific phases (1=COCO, 2=MPII, 3=Gym)
+  python3 run_experiment.py --phases 1 2
   
-  # Skip specific phases
-  python run_experiment.py --skip-phases coco mpii
+  # Skip specific phases by name
+  python3 run_experiment.py --skip-phases coco
   
-  # Run Phase 1 only
-  python run_experiment.py --configs configs/coco_baseline.yaml configs/mpii_baseline.yaml
+  # Run Phase 1 only (baseline validation)
+  python3 run_experiment.py --phases 1 2
   
-  # Run Phase 2 only
-  python run_experiment.py --configs configs/gym_exercises.yaml
+  # Run Phase 2 only (gym exercises)
+  python3 run_experiment.py --phases 3
         """,
     )
     parser.add_argument(
-        "--configs",
-        type=str,
+        "--phases",
+        type=int,
         nargs="+",
-        default=[
-            "configs/coco_baseline.yaml",
-            "configs/mpii_baseline.yaml",
-            "configs/gym_exercises.yaml",
-        ],
-        help="Config files to process (default: all phases)",
+        default=None,
+        help="Phase numbers to run: 1=COCO, 2=MPII, 3=Gym (default: all)",
     )
     parser.add_argument(
         "--skip-phases",
@@ -206,8 +242,7 @@ Examples:
     
     try:
         run_experiment(
-            configs=args.configs,
-            skip_phases=args.skip_phases,
+            phases=args.phaseip_phases,
         )
     except KeyboardInterrupt:
         print("\n\nExperiment interrupted by user.")

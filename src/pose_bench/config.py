@@ -3,15 +3,14 @@
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
-import yaml
 
 
 @dataclass
 class DatasetConfig:
     """Dataset configuration."""
-    name: str  # "coco" or "mpii"
+    name: str
     images_root: str
-    annotations_json: str  # For COCO; use annotations_path for MPII
+    annotations_json: Optional[str] = None
 
 
 @dataclass
@@ -24,8 +23,8 @@ class OutputConfig:
 class BenchmarkConfig:
     """Benchmark run configuration."""
     max_images: Optional[int] = None
-    min_conf: float = 0.2
-    models: list[str] = field(default_factory=lambda: ["mediapipe"])
+    min_conf: float = 0.3
+    models: list[str] = field(default_factory=lambda: ["mediapipe", "yolov8-pose", "movenet"])
 
 
 @dataclass
@@ -34,18 +33,6 @@ class Config:
     dataset: DatasetConfig
     output: OutputConfig
     benchmark: BenchmarkConfig
-
-    @classmethod
-    def from_yaml(cls, path: str | Path) -> "Config":
-        """Load configuration from YAML file."""
-        with open(path, "r") as f:
-            data = yaml.safe_load(f)
-        
-        return cls(
-            dataset=DatasetConfig(**data["dataset"]),
-            output=OutputConfig(**data["output"]),
-            benchmark=BenchmarkConfig(**data["benchmark"]),
-        )
     
     def get_output_dir(self, subdir: str = "") -> Path:
         """Get output directory path, optionally with subdirectory."""
@@ -55,5 +42,11 @@ class Config:
         return base
     
     def get_dataset_type(self) -> str:
-        """Get dataset type (coco or mpii)."""
-        return self.dataset.name.lower()
+        """Get dataset type from name."""
+        name_lower = self.dataset.name.lower()
+        if "coco" in name_lower:
+            return "coco"
+        elif "mpii" in name_lower:
+            return "mpii"
+        else:
+            return "gym"
