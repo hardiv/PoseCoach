@@ -139,15 +139,15 @@ def run_experiment(
             logger.info(f"Skipping phase: {phase_name}")
             continue
         
-        print_banner(f"PHASE {config_idx}/{len(configs)}: {phase_name.upper()}", "=")
-        logger.info(f"Config: {config_path}")
+        print_banner(f"PHASE {config_idx}/{len(configs_to_run)}: {phase_name.upper()}", "=")
         logger.info(f"Dataset: {config.dataset.name}")
+        logger.info(f"Images: {config.dataset.images_root}")
         logger.info(f"Models: {', '.join(config.benchmark.models)}")
         logger.info(f"Max images: {config.benchmark.max_images or 'all'}")
         
         phase_results = {
-            "phase": phase_name,_to_run)}: {phase_name.upper()}", "=")
-        logger.info(f"Images: {config.dataset.images_root
+            "phase": phase_name,
+            "models": {},
         }
         
         # Run benchmark for each model
@@ -242,7 +242,8 @@ Examples:
     
     try:
         run_experiment(
-            phases=args.phaseip_phases,
+            phases=args.phases,
+            skip_phases=args.skip_phases,
         )
     except KeyboardInterrupt:
         print("\n\nExperiment interrupted by user.")

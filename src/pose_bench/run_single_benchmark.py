@@ -134,37 +134,17 @@ def run_single_benchmark(
 
 
 def main():
-    """Main entry point for standalone usage."""
-    parser = argparse.ArgumentParser(
-        description="Run complete benchmark for a single model on a dataset"
-    )
-    parser.add_argument(
-        "--config",
-        type=str,
-        required=True,
-        help="Path to configuration YAML file",
-    )
-    parser.add_argument(
-        "--model",
-        type=str,
-        required=True,
-        help="Model name to benchmark",
-    )
+    """
+    Main entry point for standalone usage.
     
-    args = parser.parse_args()
-    
-    # Load configuration
-    try:
-        config = Config.from_yaml(args.config)
-    except FileNotFoundError:
-        print(f"Error: Config file not found: {args.config}")
-        sys.exit(1)
-    
-    # Run single model benchmark
-    success = run_single_benchmark(args.model, config)
-    
-    if not success:
-        sys.exit(1)
+    Note: This is primarily used as a library. 
+    For running experiments, use the top-level run_experiment.py
+    """
+    import sys
+    print("This module is primarily used as a library.")
+    print("To run the full experiment, use: python3 run_experiment.py")
+    print("See README.md for details.")
+    sys.exit(0)
 
 
 if __name__ == "__main__":
